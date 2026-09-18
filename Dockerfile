@@ -1,51 +1,29 @@
 # ============================================
-# Stage 1: Build
+# Node.js Production Image
 # ============================================
-FROM node:22-alpine AS builder
+FROM node:22-alpine
 
 WORKDIR /app
 
-# Install build dependencies (needed for native modules like bcrypt)
-RUN apk add --no-cache python3 make g++
+# Install wget for Docker healthcheck
+RUN apk add --no-cache wget tini
 
-# Copy dependency manifests first (Docker layer caching)
+# Copy dependency manifests first
 COPY package.json package-lock.json* ./
 
-# Deterministic install — respects package-lock.json exactly
-RUN npm ci
+# Install production dependencies
+RUN npm ci --omit=dev
 
-# Copy source and build
+# Copy application source
 COPY . .
 
-# Build TypeScript → dist/
-RUN npm run build
-
-# Prune dev dependencies for the final image
-RUN npm prune --production
-
-
-# ============================================
-# Stage 2: Runtime
-# ============================================
-FROM node:22-alpine AS runner
-
-WORKDIR /app
-
-# Install only runtime deps needed (wget for healthcheck, tini for signal handling)
-RUN apk add --no-cache wget tini
+# Create directories used by the application
+RUN mkdir -p /app/uploads /app/logs
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001 -G nodejs
-
-# Copy built artifacts & production node_modules from builder
-COPY --from=builder --chown=nodejs:nodejs /app/node_modules ./node_modules
-COPY --from=builder --chown=nodejs:nodejs /app/dist ./dist
-COPY --from=builder --chown=nodejs:nodejs /app/package.json ./package.json
-
-# Copy uploads directory stub (will be volume-mounted at runtime)
-RUN mkdir -p /app/uploads /app/logs && \
-    chown -R nodejs:nodejs /app/uploads /app/logs
+    adduser -S nodejs -u 1001 -G nodejs && \
+    chown -R nodejs:nodejs /app
 
 USER nodejs
 
@@ -54,7 +32,8 @@ EXPOSE 3000
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# tini handles SIGTERM correctly so Docker restarts are graceful
+# Graceful shutdown handling
 ENTRYPOINT ["/sbin/tini", "--"]
 
-CMD ["node", "dist/server.js"]
+# Start the actual JavaScript application
+CMD ["node", "server.js"]
