@@ -25,11 +25,11 @@ services:
 
     networks:
       - timesheet-net
-      - traefik-public # shared network so Traefik can reach it
+      - traefik-net # shared network so Traefik can reach it
 
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=traefik-public"
+      - "traefik.docker.network=traefik-net"
 
       # HTTP → HTTPS redirect
       - "traefik.http.routers.timesheet-api-http.rule=Host(`timesheet-api.dinnusmart.com`)"
@@ -115,7 +115,7 @@ networks:
     name: timesheet-net
     driver: bridge
 
-  # External network managed by Traefik (already created on your VPS)
-  traefik-public:
-    external: true
-    name: traefik-public
+    # External network managed by Traefik (already created on your VPS)
+traefik-net:
+  external: true
+  name: traefik-net
