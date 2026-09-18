@@ -5,8 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      args:
-        NODE_ENV: production
+
     image: timesheet-api:latest
     container_name: timesheet-api
 
@@ -17,34 +16,37 @@ services:
 
     depends_on:
       mysql:
-        condition: service_healthy # wait until MySQL is actually ready
+        condition: service_healthy
 
     volumes:
       - ./uploads:/app/uploads
-      - ./logs:/app/logs # optional: persist logs
+      - ./logs:/app/logs
 
     networks:
       - timesheet-net
-      - traefik-net # shared network so Traefik can reach it
+      - traefik-net
 
     labels:
       - "traefik.enable=true"
       - "traefik.docker.network=traefik-net"
 
-      # HTTP → HTTPS redirect
+      # HTTP -> HTTPS
       - "traefik.http.routers.timesheet-api-http.rule=Host(`timesheet-api.dinnusmart.com`)"
       - "traefik.http.routers.timesheet-api-http.entrypoints=web"
-      - "traefik.http.routers.timesheet-api-http.middlewares=redirect-to-https"
+      - "traefik.http.routers.timesheet-api-http.middlewares=timesheet-redirect-https"
 
       # HTTPS
       - "traefik.http.routers.timesheet-api.rule=Host(`timesheet-api.dinnusmart.com`)"
       - "traefik.http.routers.timesheet-api.entrypoints=websecure"
+      - "traefik.http.routers.timesheet-api.tls=true"
       - "traefik.http.routers.timesheet-api.tls.certresolver=letsencrypt"
+
+      # API container port
       - "traefik.http.services.timesheet-api.loadbalancer.server.port=3000"
 
-      # Redirect middleware
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
-      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
+      # HTTPS redirect middleware
+      - "traefik.http.middlewares.timesheet-redirect-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.timesheet-redirect-https.redirectscheme.permanent=true"
 
     healthcheck:
       test:
@@ -69,14 +71,7 @@ services:
       MYSQL_USER: ${DB_USER}
       MYSQL_PASSWORD: ${DB_PASSWORD}
 
-    # ⚠️ SECURITY: do NOT expose 3306 publicly.
-    # If you must access from outside for debugging, uncomment the line below
-    # and restrict to your IP: "127.0.0.1:3306:3306"
-    # ports:
-    #   - "127.0.0.1:3306:3306"
-
-    command: >
-      --default-authentication-plugin=caching_sha2_password
+    command: --default-authentication-plugin=caching_sha2_password
       --character-set-server=utf8mb4
       --collation-server=utf8mb4_unicode_ci
       --max_connections=200
@@ -84,7 +79,7 @@ services:
 
     volumes:
       - timesheet_mysql_data:/var/lib/mysql
-      - ./initdb:/docker-entrypoint-initdb.d # optional: auto-run schema on first boot
+      - ./initdb:/docker-entrypoint-initdb.d
 
     networks:
       - timesheet-net
@@ -115,7 +110,6 @@ networks:
     name: timesheet-net
     driver: bridge
 
-    # External network managed by Traefik (already created on your VPS)
-traefik-net:
-  external: true
-  name: traefik-net
+  traefik-net:
+    external: true
+    name: traefik-net
