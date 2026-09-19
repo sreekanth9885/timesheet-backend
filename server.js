@@ -28,6 +28,14 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
+// Health Check
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "Timesheet API is healthy",
+    timestamp: new Date().toISOString(),
+  });
+});
 // Swagger Documentation
 app.use("/api-docs", swaggerUi.serve);
 app.get("/api-docs", swaggerUi.setup(swaggerSpec));
