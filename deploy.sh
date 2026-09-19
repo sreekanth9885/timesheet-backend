@@ -4,7 +4,7 @@ set -e
 
 echo "Starting deployment..."
 
-cd /docker/timesheet-api-backend
+cd /docker/timesheet_backend/timesheet-backend
 
 echo "Pulling latest code..."
 git pull origin main
