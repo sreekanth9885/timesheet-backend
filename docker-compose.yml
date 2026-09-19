@@ -2,11 +2,7 @@ version: "3.9"
 
 services:
   api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-
-    image: timesheet-api:latest
+    build: .
     container_name: timesheet-api
 
     restart: unless-stopped
@@ -15,46 +11,15 @@ services:
       - .env.production
 
     depends_on:
-      mysql:
-        condition: service_healthy
-
+      - mysql
     volumes:
       - ./uploads:/app/uploads
-      - ./logs:/app/logs
-
-    networks:
-      - timesheet-net
-      - traefik-net
-
     labels:
       - "traefik.enable=true"
-      - "traefik.docker.network=traefik-net"
-
-      # HTTP -> HTTPS
-      - "traefik.http.routers.timesheet-api-http.rule=Host(`timesheet-api.dinnusmart.com`)"
-      - "traefik.http.routers.timesheet-api-http.entrypoints=web"
-      - "traefik.http.routers.timesheet-api-http.middlewares=timesheet-redirect-https"
-
-      # HTTPS
-      - "traefik.http.routers.timesheet-api.rule=Host(`timesheet-api.dinnusmart.com`)"
-      - "traefik.http.routers.timesheet-api.entrypoints=websecure"
-      - "traefik.http.routers.timesheet-api.tls=true"
-      - "traefik.http.routers.timesheet-api.tls.certresolver=letsencrypt"
-
-      # API container port
-      - "traefik.http.services.timesheet-api.loadbalancer.server.port=3000"
-
-      # HTTPS redirect middleware
-      - "traefik.http.middlewares.timesheet-redirect-https.redirectscheme.scheme=https"
-      - "traefik.http.middlewares.timesheet-redirect-https.redirectscheme.permanent=true"
-
-    healthcheck:
-      test:
-        ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 20s
+      - "traefik.http.routers.api.rule=Host(`timesheet-api.dinnusmart.com`)"
+      - "traefik.http.routers.api.entrypoints=websecure"
+      - "traefik.http.routers.api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.api.loadbalancer.server.port=3000"
 
   mysql:
     image: mysql:8.4
@@ -71,45 +36,11 @@ services:
       MYSQL_USER: ${DB_USER}
       MYSQL_PASSWORD: ${DB_PASSWORD}
 
-    command: --default-authentication-plugin=caching_sha2_password
-      --character-set-server=utf8mb4
-      --collation-server=utf8mb4_unicode_ci
-      --max_connections=200
-      --innodb_buffer_pool_size=512M
+    ports:
+      - "3306:3306"
 
     volumes:
-      - timesheet_mysql_data:/var/lib/mysql
-      - ./initdb:/docker-entrypoint-initdb.d
-
-    networks:
-      - timesheet-net
-
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "mysqladmin",
-          "ping",
-          "-h",
-          "localhost",
-          "-u",
-          "root",
-          "-p${MYSQL_ROOT_PASSWORD}",
-        ]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
+      - mysql_data:/var/lib/mysql
 
 volumes:
-  timesheet_mysql_data:
-    name: timesheet_mysql_data
-
-networks:
-  timesheet-net:
-    name: timesheet-net
-    driver: bridge
-
-  traefik-net:
-    external: true
-    name: traefik-net
+  mysql_data:
