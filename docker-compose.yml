@@ -14,27 +14,24 @@ services:
     volumes:
       - ./uploads:/app/uploads
 
-    networks:
-      - default
-      - traefik
-
     labels:
       - "traefik.enable=true"
 
-      # Unique router name for Timesheet
+      # Unique Timesheet router
       - "traefik.http.routers.timesheet-api.rule=Host(`timesheet-api.dinnusmart.com`)"
       - "traefik.http.routers.timesheet-api.entrypoints=websecure"
       - "traefik.http.routers.timesheet-api.tls=true"
       - "traefik.http.routers.timesheet-api.tls.certresolver=letsencrypt"
 
-      # Unique service name for Timesheet
+      # Unique Timesheet service
       - "traefik.http.services.timesheet-api.loadbalancer.server.port=3000"
 
-      # Tell Traefik which Docker network to use
-      - "traefik.docker.network=traefik"
+      # Tell Traefik to use the host network
+      - "traefik.docker.network=host"
 
   mysql:
     image: mysql:8.4
+
     container_name: timesheet-mysql
 
     restart: unless-stopped
@@ -50,12 +47,6 @@ services:
 
     volumes:
       - mysql_data:/var/lib/mysql
-
-networks:
-  default:
-
-  traefik:
-    external: true
 
 volumes:
   mysql_data:
