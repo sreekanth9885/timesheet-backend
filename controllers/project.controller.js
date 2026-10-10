@@ -1,27 +1,92 @@
 const pool = require('../config/database');
 const auditLog = require('../middleware/auditLog');
+const {
+    sendSelectiveEncrypted,
+} = require("../utils/projectEncryption");
 
 exports.getAll = async (req, res, next) => {
     try {
-        if (req.user.role_id === 3) {
-            const [projects] = await pool.query(
-                "SELECT p.* FROM projects p JOIN project_employees pe ON p.id = pe.project_id WHERE pe.employee_id = ?",
+        let projects;
+
+        if (Number(req.user.role_id) === 3) {
+            [projects] = await pool.query(
+                `SELECT p.*
+         FROM projects p
+         INNER JOIN project_employees pe
+           ON p.id = pe.project_id
+         WHERE pe.employee_id = ?
+         ORDER BY p.created_at DESC`,
                 [req.user.id]
             );
-            return res.json({ success: true, data: projects });
-        }
-        const [projects] = await pool.query("SELECT * FROM projects ORDER BY created_at DESC");
-        res.json({ success: true, data: projects });
-    } catch (error) { next(error); }
+      } else {
+          [projects] = await pool.query(
+              `SELECT *
+         FROM projects
+         ORDER BY created_at DESC`
+          );
+      }
+
+        return sendSelectiveEncrypted(req, res, 200, {
+            success: true,
+            data: projects,
+        });
+    } catch (error) {
+        next(error);
+    }
 };
+
+
 
 exports.getById = async (req, res, next) => {
     try {
-        const [projects] = await pool.query("SELECT * FROM projects WHERE id = ?", [req.params.id]);
-        if (!projects.length) return res.status(404).json({ success: false, message: 'Project not found' });
-        res.json({ success: true, data: projects[0] });
-    } catch (error) { next(error); }
+      const projectId = Number(req.params.id);
+
+      if (!Number.isInteger(projectId) || projectId <= 0) {
+          return res.status(400).json({
+              success: false,
+              message: "Invalid project ID",
+          });
+      }
+
+      let projects;
+
+      if (Number(req.user.role_id) === 3) {
+          [projects] = await pool.query(
+              `SELECT p.*
+         FROM projects p
+         INNER JOIN project_employees pe
+           ON p.id = pe.project_id
+         WHERE p.id = ?
+           AND pe.employee_id = ?
+         LIMIT 1`,
+              [projectId, req.user.id]
+          );
+      } else {
+          [projects] = await pool.query(
+              `SELECT *
+         FROM projects
+         WHERE id = ?
+         LIMIT 1`,
+              [projectId]
+          );
+      }
+
+      if (projects.length === 0) {
+          return res.status(404).json({
+              success: false,
+              message: "Project not found",
+          });
+      }
+
+      return sendSelectiveEncrypted(req, res, 200, {
+          success: true,
+          data: projects[0],
+      });
+  } catch (error) {
+      next(error);
+  }
 };
+
 
 exports.create = async (req, res, next) => {
     try {
