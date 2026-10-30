@@ -1,29 +1,63 @@
 const pool = require('../config/database');
 const auditLog = require('../middleware/auditLog');
 
+
 exports.getAll = async (req, res, next) => {
     try {
         const { project_id, assigned_to, status, priority } = req.query;
+
         let query = `
-            SELECT t.*, p.name as project_name, u.first_name as assignee_first, u.last_name as assignee_last 
+            SELECT
+                t.*,
+                p.name AS project_name,
+                u.first_name AS assignee_first,
+                u.last_name AS assignee_last
             FROM tasks t
             JOIN projects p ON t.project_id = p.id
             LEFT JOIN users u ON t.assigned_to = u.id
             WHERE 1=1
         `;
+
         const params = [];
-        
-        if (project_id) { query += " AND t.project_id = ?"; params.push(project_id); }
-        if (assigned_to) { query += " AND t.assigned_to = ?"; params.push(assigned_to); }
-        if (status) { query += " AND t.status = ?"; params.push(status); }
-        if (priority) { query += " AND t.priority = ?"; params.push(priority); }
-        
+
+        // Employee (role_id = 3) can see only their assigned tasks
+        if (req.user.role_id === 3) {
+            query += " AND t.assigned_to = ?";
+            params.push(req.user.id);
+        } else if (assigned_to) {
+            query += " AND t.assigned_to = ?";
+            params.push(assigned_to);
+        }
+
+        if (project_id) {
+            query += " AND t.project_id = ?";
+            params.push(project_id);
+        }
+
+        if (status) {
+            query += " AND t.status = ?";
+            params.push(status);
+        }
+
+        if (priority) {
+            query += " AND t.priority = ?";
+            params.push(priority);
+        }
+
         query += " ORDER BY t.created_at DESC";
 
         const [tasks] = await pool.query(query, params);
-        res.json({ success: true, data: tasks });
-    } catch (error) { next(error); }
+
+        res.json({
+            success: true,
+            data: tasks
+        });
+
+    } catch (error) {
+        next(error);
+    }
 };
+
 
 exports.getMyTasks = async (req, res, next) => {
     try {
