@@ -37,7 +37,7 @@ exports.create = async (req, res, next) => {
         const total_hours = diffHours - (break_minutes || 0) / 60;
 
         if (total_hours <= 0) {
-            return res.status(400).json({ success: false, message: 'Invalid time range' });
+            return res.status(400).json({ success: false, message: 'Total duration must be greater than 0 minutes' });
         }
 
         // Overlap validation
@@ -48,7 +48,7 @@ exports.create = async (req, res, next) => {
             [employee_id, date, start_time, start_time, end_time, end_time]
         );
         if (overlaps.length > 0) {
-            return res.status(400).json({ success: false, message: 'Time entry overlaps with an existing entry' });
+            return res.status(400).json({ success: false, message: 'End time cannot be earlier than start time' });
         }
 
         // Max hours validation
