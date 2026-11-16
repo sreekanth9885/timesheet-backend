@@ -19,7 +19,7 @@ const reportRoutes = require("./routes/report.routes");
 const dashboardRoutes = require("./routes/dashboard.routes");
 const settingsRoutes = require("./routes/settings.routes");
 const auditRoutes = require("./routes/audit.routes");
-
+const organizationRoutes = require("./routes/organization.routes");
 const app = express();
 
 // Middleware
@@ -53,7 +53,8 @@ app.use("/api/reports", reportRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/audit-logs", auditRoutes);
-
+app.use("/api/organizations", organizationRoutes);
+app.use("/api/super-admin", require("./routes/superAdmin"));
 // Global Error Handler
 app.use(errorHandler);
 
