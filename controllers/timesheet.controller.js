@@ -59,7 +59,7 @@ async function loadOrgSettings(orgId) {
     rows.map((r) => [r.setting_key, r.setting_value]),
   );
   return {
-    maxHours: parseFloat(map.max_hours_per_day ?? 16),
+    maxHours: parseFloat(map.max_hours_per_day ?? 8), // ← 8 now
     overtimeThreshold: parseFloat(map.overtime_threshold ?? 8),
   };
 }
@@ -500,18 +500,49 @@ exports.getMyToday = async (req, res, next) => {
   }
 };
 
-/* ── GET /api/timesheets/my-week ─────────────────────── */
+/* ── GET /api/timesheets/my-week?date=YYYY-MM-DD ──────── */
 exports.getMyWeek = async (req, res, next) => {
   try {
     const orgId = requireOrg(req);
+
+    // Anchor: ?date=YYYY-MM-DD  (falls back to today)
+    const anchorStr = req.query.date || new Date().toISOString().split("T")[0];
+
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(anchorStr);
+    if (!m) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid date param (expected YYYY-MM-DD)",
+      });
+    }
+
+    // Parse in UTC to avoid DST/timezone drift
+    const anchor = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+    const dow = anchor.getUTCDay(); // 0=Sun … 6=Sat
+    const mondayOffset = dow === 0 ? -6 : 1 - dow; // Mon-start week
+    const monday = new Date(anchor);
+    monday.setUTCDate(anchor.getUTCDate() + mondayOffset);
+    const sunday = new Date(monday);
+    sunday.setUTCDate(monday.getUTCDate() + 6);
+
+    const fmt = (dt) => dt.toISOString().split("T")[0];
+    const weekStart = fmt(monday);
+    const weekEnd = fmt(sunday);
+
     const [entries] = await pool.query(
       `SELECT * FROM timesheet_entries
         WHERE employee_id = ?
           AND organization_id = ?
-          AND YEARWEEK(date, 1) = YEARWEEK(CURDATE(), 1)`,
-      [req.user.id, orgId],
+          AND date BETWEEN ? AND ?
+        ORDER BY date ASC, start_time ASC`,
+      [req.user.id, orgId, weekStart, weekEnd],
     );
-    res.json({ success: true, data: entries });
+
+    res.json({
+      success: true,
+      data: entries,
+      meta: { week_start: weekStart, week_end: weekEnd },
+    });
   } catch (error) {
     if (error.status) {
       return res
