@@ -25,9 +25,9 @@ exports.getAdmin = async (req, res, next) => {
       `SELECT COUNT(*) AS count
          FROM users
         WHERE status = 'active'
-          AND role_id = ?
+          AND role_id IN (?, ?)
           AND organization_id = ?`,
-      [ROLES.EMPLOYEE, orgId],
+      [ROLES.ORG_ADMIN, ROLES.EMPLOYEE, orgId],
     );
 
     const [projCount] = await pool.query(

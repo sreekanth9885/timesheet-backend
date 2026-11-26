@@ -252,7 +252,19 @@ exports.create = async (req, res, next) => {
         orgId,
       ],
     );
-
+    /* Auto-allocate the assignee to the parent project so the project
+       shows up under their /api/projects list. Idempotent thanks to the
+       UNIQUE(project_id, employee_id) constraint. */
+    if (finalAssignedTo) {
+      await pool.query(
+        `INSERT INTO project_employees
+           (project_id, employee_id, allocation_percentage, organization_id)
+         VALUES (?, ?, 100, ?)
+         ON DUPLICATE KEY UPDATE allocation_percentage =
+           project_employees.allocation_percentage`,
+        [project_id, finalAssignedTo, orgId],
+      );
+    }
     await auditLog(req, "CREATE", "TASK", result.insertId, null, {
       ...req.body,
       organization_id: orgId,
@@ -324,7 +336,18 @@ exports.update = async (req, res, next) => {
         orgId,
       ],
     );
-
+    /* If the admin (re)assigned this task to someone, make sure that user
+       is also allocated to the parent project. */
+    if (assigned_to) {
+      await pool.query(
+        `INSERT INTO project_employees
+           (project_id, employee_id, allocation_percentage, organization_id)
+         VALUES (?, ?, 100, ?)
+         ON DUPLICATE KEY UPDATE allocation_percentage =
+           project_employees.allocation_percentage`,
+        [task.project_id, assigned_to, orgId],
+      );
+    }
     await auditLog(req, "UPDATE", "TASK", req.params.id, null, req.body);
     res.json({ success: true, message: "Task updated" });
   } catch (error) {
